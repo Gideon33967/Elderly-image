@@ -1,38 +1,30 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
+// This forces Vercel to wait up to 60 seconds instead of 10
+export const maxDuration = 60; 
+
 export async function POST(req: Request) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API Key missing" }, { status: 500 });
-    }
+    if (!apiKey) return NextResponse.json({ error: "Key missing" }, { status: 500 });
 
     const { script } = await req.json();
-    
-    // Explicitly using the stable v1 API version if possible
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Use the most compatible stable model name
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash" 
-    });
+    // Use the most universal model name
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const prompt = `Analyze this YouTube script. Break it into scenes and return ONLY a JSON array. Script: ${script}`;
+    const prompt = `Break this YouTube script into a JSON array of scenes: ${script}`;
 
-    // Standard call
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().trim();
+    const text = result.response.text();
 
-    // Remove markdown backticks if present
+    // Clean up markdown code blocks if the AI adds them
     const cleanText = text.replace(/```json|```/g, "").trim();
-    const scenes = JSON.parse(cleanText);
-
-    return NextResponse.json({ scenes });
+    return NextResponse.json({ scenes: JSON.parse(cleanText) });
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    // If 1.5-flash fails, it might be a regional or versioning issue
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
