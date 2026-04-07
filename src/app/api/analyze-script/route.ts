@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -16,8 +16,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No script provided." }, { status: 400 });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
 You are a YouTube B-Roll video strategist for a health/medical channel targeting elderly audiences.
@@ -28,19 +27,13 @@ Analyze this script and break it into scenes. For each scene provide:
 3. A 2-3 word Pixabay search keyword for relevant stock footage
 4. A rough timestamp (e.g. "0:00-0:15")
 
-Return ONLY a valid JSON array with no markdown, no backticks, no explanation. Example format:
+Return ONLY a valid JSON array with no markdown, no backticks, no explanation. Example:
 [
   {
     "sceneNumber": 1,
     "description": "Introduction showing the aging heart and blood vessels",
     "keyword": "elderly heart health",
     "timestamp": "0:00-0:15"
-  },
-  {
-    "sceneNumber": 2,
-    "description": "Senior walking in a park for daily exercise",
-    "keyword": "senior walking park",
-    "timestamp": "0:15-0:35"
   }
 ]
 
@@ -48,29 +41,30 @@ Script to analyze:
 ${script}
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+    });
 
-    // Safely extract JSON array from response
+    const text = response.text?.trim() ?? "";
+
     const startIdx = text.indexOf("[");
     const endIdx = text.lastIndexOf("]");
 
     if (startIdx === -1 || endIdx === -1) {
-      console.error("Gemini raw response:", text);
       return NextResponse.json(
-        { error: `Gemini returned unexpected format. Raw: ${text.substring(0, 200)}` },
+        { error: `Unexpected AI response format: ${text.substring(0, 200)}` },
         { status: 500 }
       );
     }
 
-    const jsonStr = text.substring(startIdx, endIdx + 1);
-    const scenes = JSON.parse(jsonStr);
-
+    const scenes = JSON.parse(text.substring(startIdx, endIdx + 1));
     return NextResponse.json({ scenes });
+
   } catch (error: any) {
     console.error("Gemini Error:", error);
     return NextResponse.json(
-      { error: error.message || "Unknown error from Gemini API." },
+      { error: error.message || "Unknown Gemini error." },
       { status: 500 }
     );
   }
