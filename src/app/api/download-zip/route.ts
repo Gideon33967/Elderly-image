@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
     const zipBuffer = await zip.generateAsync({ type: "uint8array" });
 
-    return new Response(zipBuffer, {
+    return new Response(new Blob([zipBuffer]), {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
