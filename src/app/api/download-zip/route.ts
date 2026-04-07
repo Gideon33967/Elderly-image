@@ -4,10 +4,9 @@ import JSZip from "jszip";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { urls } = body;
+    const { urls } = await req.json();
 
-    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+    if (!urls || urls.length === 0) {
       return NextResponse.json({ error: "No URLs provided." }, { status: 400 });
     }
 
@@ -19,8 +18,6 @@ export async function POST(req: Request) {
         try {
           const response = await fetch(url);
           if (!response.ok) throw new Error(`Failed to fetch ${url}`);
-          
-          // Using arrayBuffer is correct for binary data
           const buffer = await response.arrayBuffer();
           zip.file(filename, buffer);
         } catch (err) {
@@ -32,7 +29,7 @@ export async function POST(req: Request) {
     // Generate the zip as a Uint8Array
     const zipBuffer = await zip.generateAsync({ type: "uint8array" });
 
-    // The 'as any' cast fixes the TypeScript build error in Vercel
+    // Using 'as any' bypasses the strict TypeScript BlobPart/SharedArrayBuffer error
     return new Response(zipBuffer as any, {
       status: 200,
       headers: {
