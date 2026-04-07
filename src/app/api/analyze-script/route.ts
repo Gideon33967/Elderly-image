@@ -1,58 +1,38 @@
-import { GoogleGenerativeAI } from "@google/generative-ai"; // Corrected import
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY is not set." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Missing API Key" }, { status: 500 });
     }
 
     const { script } = await req.json();
-    if (!script) {
-      return NextResponse.json({ error: "No script provided." }, { status: 400 });
-    }
-
-    // Corrected initialization
+    
+    // 1. Initialize with the official SDK
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
 
-    const prompt = `
-    Analyze this script and break it into scenes. For each scene provide:
-    1. A scene number
-    2. A short description of what's happening
-    3. A 2-3 word Pixabay search keyword for relevant stock footage
-    4. A rough timestamp (e.g. "0:00-0:15")
+    // 2. Use the 'gemini-pro' or 'gemini-1.5-flash-latest' alias
+    // This resolves the 404 error by pointing to the current stable endpoint
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-    Return ONLY a valid JSON array.
+    const prompt = `Analyze this YouTube script for a senior health channel. 
+    Break it into scenes and return ONLY a JSON array. 
     Script: ${script}`;
 
-    // Corrected method call
+    // 3. Use the standardized generateContent method
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().trim();
+    const text = result.response.text();
 
-    // Clean up markdown if Gemini adds it
-    const cleanText = text.replace(/```json|```/g, "").trim();
+    // Clean up potential markdown formatting from the AI
+    const jsonString = text.replace(/```json|```/g, "").trim();
+    const scenes = JSON.parse(jsonString);
 
-    const startIdx = cleanText.indexOf("[");
-    const endIdx = cleanText.lastIndexOf("]");
-
-    if (startIdx === -1 || endIdx === -1) {
-       return NextResponse.json({ error: "Invalid JSON format" }, { status: 500 });
-    }
-
-    const scenes = JSON.parse(cleanText.substring(startIdx, endIdx + 1));
     return NextResponse.json({ scenes });
 
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Unknown Gemini error." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
