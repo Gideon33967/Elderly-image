@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Corrected import
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -6,7 +6,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY is not set in environment variables." },
+        { error: "GEMINI_API_KEY is not set." },
         { status: 500 }
       );
     }
@@ -16,49 +16,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No script provided." }, { status: 400 });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    // Corrected initialization
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
 
     const prompt = `
-You are a YouTube B-Roll video strategist for a health/medical channel targeting elderly audiences.
+    Analyze this script and break it into scenes. For each scene provide:
+    1. A scene number
+    2. A short description of what's happening
+    3. A 2-3 word Pixabay search keyword for relevant stock footage
+    4. A rough timestamp (e.g. "0:00-0:15")
 
-Analyze this script and break it into scenes. For each scene provide:
-1. A scene number
-2. A short description of what's happening
-3. A 2-3 word Pixabay search keyword for relevant stock footage
-4. A rough timestamp (e.g. "0:00-0:15")
+    Return ONLY a valid JSON array.
+    Script: ${script}`;
 
-Return ONLY a valid JSON array with no markdown, no backticks, no explanation. Example:
-[
-  {
-    "sceneNumber": 1,
-    "description": "Introduction showing the aging heart and blood vessels",
-    "keyword": "elderly heart health",
-    "timestamp": "0:00-0:15"
-  }
-]
+    // Corrected method call
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text().trim();
 
-Script to analyze:
-${script}
-`;
+    // Clean up markdown if Gemini adds it
+    const cleanText = text.replace(/```json|```/g, "").trim();
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-    });
-
-    const text = response.text?.trim() ?? "";
-
-    const startIdx = text.indexOf("[");
-    const endIdx = text.lastIndexOf("]");
+    const startIdx = cleanText.indexOf("[");
+    const endIdx = cleanText.lastIndexOf("]");
 
     if (startIdx === -1 || endIdx === -1) {
-      return NextResponse.json(
-        { error: `Unexpected AI response format: ${text.substring(0, 200)}` },
-        { status: 500 }
-      );
+       return NextResponse.json({ error: "Invalid JSON format" }, { status: 500 });
     }
 
-    const scenes = JSON.parse(text.substring(startIdx, endIdx + 1));
+    const scenes = JSON.parse(cleanText.substring(startIdx, endIdx + 1));
     return NextResponse.json({ scenes });
 
   } catch (error: any) {
